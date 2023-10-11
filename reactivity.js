@@ -3,6 +3,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
   let tracking = null;
   let queue = new Set();
   let wip = null;
+  let cbs = new Map();
 
   function signal(initial, equals = Object.is) {
     let key = sets.push();
@@ -27,7 +28,8 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   function watch(fn) {
     let clear;
-    let key = sets.push((action) => {
+    let key = sets.push();
+    cbs.set(key, (action) => {
       if (typeof clear === "function") clear();
       if (action === "digest") clear = fn();
     });
@@ -37,23 +39,24 @@ export function ObservableScope(schedule = (cb) => cb()) {
     tracking = null;
   }
 
-  function derive(fn, equals = Object.is) {
+  function derive(get, equals = Object.is) {
     let current;
     let inputKey = sets.push();
-    let outputKey = sets.push((action) => {
+    let outputKey = sets.push();
+    cbs.set(outputKey, (action) => {
       if (action === "digest") {
-        let val = fn();
+        let val = get();
         if (!equals(current, val)) {
           current = val;
           let root = sets.find(inputKey);
           if (wip == null || !wip.has(root)) queue.add(root);
-          // schedule(digest);
+          // no digest, one is already in progress and all derive consumers are in the future
         }
       }
     });
     // capturing
     tracking = outputKey;
-    current = fn();
+    current = get();
     tracking = null;
     return (value) => {
       if (typeof value === "undefined") {
@@ -73,12 +76,29 @@ export function ObservableScope(schedule = (cb) => cb()) {
     };
   }
 
-  function dispose() {
-    for (let cursor = 0; cursor < sets.nodes.length; cursor++) {
-      if (typeof sets.nodes[cursor] === "function") {
-        sets.nodes[cursor]("dispose");
+  function observe(get, subscribe, equals = Object.is) {
+    let current = get();
+    let key = sets.push();
+    let clear = subscribe(() => {
+      let val = get();
+      if (!equals(current, val)) {
+        current = val;
+        let root = sets.find(key);
+        if (wip == null || !wip.has(root)) queue.add(root);
+        schedule(digest);
       }
-    }
+    });
+    cbs.set(key, (action) => {
+      if (action === "dispose") clear();
+    });
+    return () => {
+      if (tracking != null) sets.union(tracking, key);
+      return current;
+    };
+  }
+
+  function dispose() {
+    for (let cb of cbs.values()) cb("dispose");
   }
 
   function digest() {
@@ -86,9 +106,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     queue = new Set();
     for (let cursor = 0; cursor < sets.parents.length; cursor++) {
       if (temp.has(sets.find(sets.parents[cursor]))) {
-        if (typeof sets.nodes[cursor] === "function") {
-          sets.nodes[cursor]("digest"); // -> this can update queue
-        }
+        if (cbs.has(cursor)) cbs.get(cursor)("digest"); // -> this can update queue
       }
     }
 
@@ -96,19 +114,17 @@ export function ObservableScope(schedule = (cb) => cb()) {
     else wip = null;
   }
 
-  return { signal, watch, derive, dispose };
+  return { signal, watch, derive, observe, dispose };
 }
 
 function DisjointSet() {
   let parents = [];
   let ranks = [];
-  let nodes = [];
 
-  function push(value) {
+  function push() {
     let x = parents.length;
     parents.push(x);
     ranks.push(0);
-    nodes.push(value);
     return x;
   }
 
@@ -156,5 +172,5 @@ function DisjointSet() {
     }
   }
 
-  return { parents, nodes, push, find, union };
+  return { parents, push, find, union };
 }

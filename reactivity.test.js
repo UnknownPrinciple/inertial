@@ -243,3 +243,60 @@ test("signal + derive once", () => {
   equal(c(), "A|Ab");
   equal(watcher.mock.callCount(), 2);
 });
+
+/* One more capability */
+test("observe + watch", () => {
+  let os = ObservableScope();
+
+  let et = new EventTarget();
+  let source = 0;
+  let a = os.observe(
+    () => source,
+    (cb) => {
+      et.addEventListener("update", cb);
+      return () => et.removeEventListener("update", cb);
+    },
+  );
+
+  equal(a(), 0);
+
+  let received;
+  let cleanup = mock.fn();
+  let b = os.signal(true);
+  os.watch(() => {
+    if (!b()) return;
+    received = a();
+    return cleanup;
+  });
+  let c = os.derive(() => a());
+
+  equal(received, 0);
+
+  source = 13;
+  et.dispatchEvent(new Event("update"));
+
+  equal(a(), 13);
+  equal(received, 13);
+  equal(c(), 13);
+  equal(cleanup.mock.callCount(), 1);
+
+  b(false);
+
+  source = 100;
+  et.dispatchEvent(new Event("update"));
+
+  equal(a(), 100);
+  equal(received, 13);
+  equal(c(), 100);
+  equal(cleanup.mock.callCount(), 2);
+
+  os.dispose();
+
+  source = 200;
+  et.dispatchEvent(new Event("update"));
+
+  equal(a(), 100);
+  equal(received, 13);
+  equal(c(), 100);
+  equal(cleanup.mock.callCount(), 2);
+});
