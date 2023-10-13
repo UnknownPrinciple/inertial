@@ -1,9 +1,9 @@
 import { buildSync } from "esbuild";
 import { gzipSync, brotliCompressSync } from "node:zlib";
 
-console.log("dataflow");
+console.log("inertial");
 build(`
-import { ObservableScope } from "../dataflow.js";
+import { ObservableScope } from "../inertial.js";
 
 export function vm() {
   let os = ObservableScope();

@@ -1,12 +1,12 @@
 {
-  "name": "dataflow",
+  "name": "inertial",
   "version": "0.0.0",
   "type": "module",
-  "main": "./dataflow.js",
-  "module": "./dataflow.js",
-  "exports": "./dataflow.js",
+  "main": "./inertial.js",
+  "module": "./inertial.js",
+  "exports": "./inertial.js",
   "files": [
-    "dataflow.d.ts",
-    "dataflow.js"
+    "inertial.d.ts",
+    "inertial.js"
   ]
 }

@@ -1,4 +1,4 @@
-# dataflow
+# inertial
 
 A tiny library for integrating reactive signals anywhere.
 
@@ -8,7 +8,7 @@ A tiny library for integrating reactive signals anywhere.
 - TypeScript typings included
 
 ```js
-import { ObservableScope } from "dataflow";
+import { ObservableScope } from "inertial";
 
 /* Create isolated scope that has its own lifecycle */
 let os = ObservableScope();
