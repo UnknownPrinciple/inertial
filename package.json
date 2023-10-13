@@ -1,4 +1,9 @@
 {
-  "name": "reactivity",
-  "type": "module"
+  "name": "dataflow",
+  "version": "0.0.0",
+  "type": "module",
+  "files": [
+    "dataflow.d.ts",
+    "dataflow.js"
+  ]
 }

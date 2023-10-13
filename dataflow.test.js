@@ -1,6 +1,6 @@
 import { test, mock } from "node:test";
 import { equal, deepEqual } from "node:assert/strict";
-import { ObservableScope } from "./reactivity.js";
+import { ObservableScope } from "./dataflow.js";
 
 /* The most basic use case is to be able to hold a value in a Signal. */
 test("signal", () => {
