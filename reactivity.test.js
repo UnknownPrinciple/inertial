@@ -300,3 +300,7 @@ test("observe + watch", () => {
   equal(c(), 100);
   equal(cleanup.mock.callCount(), 2);
 });
+
+test.todo("peek");
+
+test.todo("batch");
