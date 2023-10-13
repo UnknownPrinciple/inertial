@@ -31,19 +31,18 @@ export function vm() {
   let e = signal(navigator.onLine)
   let b = computed(() => a.value * 3);
 
-  function handle() {
-    e.value = navigator.onLine;
-  }
+  effect(() => {
+    function handle() {
+      e.value = navigator.onLine;
+    }
 
-  window.addEventListener('offline', handle);
+    window.addEventListener('offline', handle);
+    return () => window.removeEventListener('offline', handle);
+  })
 
   effect(() => {
     console.log(b.value);
   });
-
-  return () => {
-    window.removeEventListener('offline', handle);
-  }
 }`);
 
 console.log("@vue/reactivity");
@@ -65,9 +64,7 @@ export function vm() {
     console.log(b.value);
   });
 
-  return () => {
-    window.removeEventListener('offline', handle);
-  }
+  return () => window.removeEventListener('offline', handle);
 }`);
 
 console.log("@angular/core");
@@ -91,6 +88,28 @@ export function vm() {
   effect(() => {
     console.log(b());
   });
+}`);
+
+console.log("knockout");
+build(`
+import { observable, computed } from "knockout";
+
+export function vm() {
+  let a = observable(0);
+  let e = observable(navigator.onLine);
+  let b = computed(() => (e() ? a() * 3 : 0));
+
+  function handle() {
+    e(navigator.onLine);
+  }
+
+  window.addEventListener("offline", handle);
+
+  computed(() => {
+    console.log(b());
+  });
+
+  return () => window.removeEventListener("offline", handle);
 }`);
 
 function build(contents) {
