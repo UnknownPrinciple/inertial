@@ -301,6 +301,55 @@ test("observe + watch", () => {
   equal(cleanup.mock.callCount(), 2);
 });
 
-test.todo("peek");
+test("signal + peek + watch", () => {
+  let os = ObservableScope();
 
-test.todo("batch");
+  let valueA = os.signal(13);
+  let valueB = os.derive(() => valueA() * 2);
+  let valueC = os.signal(false);
+
+  let watcherA = mock.fn();
+  let watcherB = mock.fn();
+
+  os.watch(() => {
+    watcherA(os.peek(() => valueA() + valueB()));
+    watcherB(valueC());
+  });
+
+  let args = (mock) => mock.calls.map((call) => call.arguments);
+  deepEqual(args(watcherA.mock), [[39]]);
+  deepEqual(args(watcherB.mock), [[false]]);
+
+  valueA(2);
+  deepEqual(args(watcherA.mock), [[39]]);
+  deepEqual(args(watcherB.mock), [[false]]);
+
+  valueC(true);
+  deepEqual(args(watcherA.mock), [[39], [6]]);
+  deepEqual(args(watcherB.mock), [[false], [true]]);
+});
+
+test("signal + derive + batch", () => {
+  let os = ObservableScope();
+
+  let valueA = os.signal(13);
+  let valueB = os.signal(10);
+  let compute = mock.fn((v) => v);
+  let valueC = os.derive(() => compute(valueA() * valueB()));
+
+  let args = (mock) => mock.calls.map((call) => call.arguments);
+  deepEqual(args(compute.mock), [[130]]);
+  equal(valueC(), 130);
+
+  valueA(14);
+  valueB(1);
+  deepEqual(args(compute.mock), [[130], [140], [14]]);
+  equal(valueC(), 14);
+
+  os.batch(() => {
+    valueA(15);
+    valueB(10);
+  });
+  deepEqual(args(compute.mock), [[130], [140], [14], [150]]);
+  equal(valueC(), 150);
+});

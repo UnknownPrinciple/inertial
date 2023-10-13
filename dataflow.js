@@ -80,6 +80,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     let current = get();
     let key = sets.push();
     let clear = subscribe(() => {
+      // writing
       let val = get();
       if (!equals(current, val)) {
         current = val;
@@ -95,6 +96,22 @@ export function ObservableScope(schedule = (cb) => cb()) {
       if (tracking != null) sets.union(key, tracking);
       return current;
     };
+  }
+
+  function peek(get) {
+    let temp = tracking;
+    tracking = null;
+    let result = get();
+    tracking = temp;
+    return result;
+  }
+
+  function batch(fn) {
+    let temp = schedule;
+    schedule = () => {};
+    fn();
+    schedule = temp;
+    schedule(digest);
   }
 
   function dispose() {
@@ -114,19 +131,13 @@ export function ObservableScope(schedule = (cb) => cb()) {
     wip = null;
   }
 
-  return { signal, watch, derive, observe, dispose };
+  return { signal, watch, derive, observe, peek, batch, dispose };
 }
 
 function DisjointSet() {
   let cursor = 0;
   let parents = new Uint32Array(32);
   let ranks = new Uint32Array(32);
-
-  function grow(v) {
-    let n = new Uint32Array(v.length + 32);
-    n.set(v);
-    return n;
-  }
 
   function push() {
     let x = cursor++;
@@ -135,7 +146,6 @@ function DisjointSet() {
       ranks = grow(ranks);
     }
     parents[x] = x;
-    ranks[x] = 0;
     return x;
   }
 
@@ -192,4 +202,10 @@ function DisjointSet() {
     find,
     union,
   };
+}
+
+function grow(v) {
+  let n = new Uint32Array(v.length + 32);
+  n.set(v);
+  return n;
 }

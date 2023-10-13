@@ -1,9 +1,9 @@
 import { buildSync } from "esbuild";
 import { gzipSync, brotliCompressSync } from "node:zlib";
 
-console.log("reactivity");
+console.log("dataflow");
 build(`
-import { ObservableScope } from "../reactivity.js";
+import { ObservableScope } from "../dataflow.js";
 
 export function vm() {
   let os = ObservableScope();
