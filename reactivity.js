@@ -11,7 +11,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) sets.union(tracking, key);
+        if (tracking != null) sets.union(key, tracking);
         return current;
       } else {
         // writing
@@ -49,8 +49,8 @@ export function ObservableScope(schedule = (cb) => cb()) {
         if (!equals(current, val)) {
           current = val;
           let root = sets.find(inputKey);
-          if (wip == null || !wip.has(root)) queue.add(root);
-          // no digest, one is already in progress and all derive consumers are in the future
+          if (wip != null) wip.add(root);
+          else queue.add(root);
         }
       }
     });
@@ -61,7 +61,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) sets.union(tracking, inputKey);
+        if (tracking != null) sets.union(inputKey, tracking);
         return current;
       } else {
         // writing
@@ -92,7 +92,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
       if (action === "dispose") clear();
     });
     return () => {
-      if (tracking != null) sets.union(tracking, key);
+      if (tracking != null) sets.union(key, tracking);
       return current;
     };
   }
@@ -102,29 +102,40 @@ export function ObservableScope(schedule = (cb) => cb()) {
   }
 
   function digest() {
-    let temp = (wip = queue);
-    queue = new Set();
-    for (let cursor = 0; cursor < sets.parents.length; cursor++) {
-      if (temp.has(sets.find(sets.parents[cursor]))) {
-        if (cbs.has(cursor)) cbs.get(cursor)("digest"); // -> this can update queue
+    while (queue.size > 0) {
+      let temp = (wip = queue);
+      queue = new Set();
+      for (let cursor = 0; cursor < sets.cursor; cursor++) {
+        if (temp.has(sets.find(sets.parents[cursor]))) {
+          if (cbs.has(cursor)) cbs.get(cursor)("digest"); // -> this can update queue
+        }
       }
     }
-
-    if (queue.size > 0) schedule(digest);
-    else wip = null;
+    wip = null;
   }
 
   return { signal, watch, derive, observe, dispose };
 }
 
 function DisjointSet() {
-  let parents = [];
-  let ranks = [];
+  let cursor = 0;
+  let parents = new Uint32Array(32);
+  let ranks = new Uint32Array(32);
+
+  function grow(v) {
+    let n = new Uint32Array(v.length + 32);
+    n.set(v);
+    return n;
+  }
 
   function push() {
-    let x = parents.length;
-    parents.push(x);
-    ranks.push(0);
+    let x = cursor++;
+    if (x === parents.length) {
+      parents = grow(parents);
+      ranks = grow(ranks);
+    }
+    parents[x] = x;
+    ranks[x] = 0;
     return x;
   }
 
@@ -172,5 +183,13 @@ function DisjointSet() {
     }
   }
 
-  return { parents, push, find, union };
+  return {
+    parents,
+    get cursor() {
+      return cursor;
+    },
+    push,
+    find,
+    union,
+  };
 }
