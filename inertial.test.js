@@ -216,6 +216,25 @@ test("signal + derive bailout", () => {
   equal(dm.mock.callCount(), 3);
 });
 
+test("signal + signal + watch + watch bailout", () => {
+  let os = ObservableScope();
+  let a = os.signal(0);
+  let b = os.signal(1);
+  let watcherA = mock.fn();
+  let watcherB = mock.fn();
+  os.watch(() => watcherA(a(), b()));
+  os.watch(() => watcherB(b()));
+  let args = (mock) => mock.calls.map((call) => call.arguments);
+  deepEqual(args(watcherA.mock), [[0, 1]]);
+  deepEqual(args(watcherB.mock), [[1]]);
+  a((v) => v + 2);
+  deepEqual(args(watcherA.mock), [
+    [0, 1],
+    [2, 1],
+  ]);
+  deepEqual(args(watcherB.mock), [[1]]);
+});
+
 /* Borrow a test case from Angular signals. */
 test("signal + derive diamond", () => {
   let os = ObservableScope();

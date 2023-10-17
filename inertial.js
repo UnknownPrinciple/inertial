@@ -1,25 +1,32 @@
 export function ObservableScope(schedule = (cb) => cb()) {
-  let sets = DisjointSet();
+  let id = 0;
   let tracking = null;
   let queue = new Set();
   let wip = null;
   let cbs = new Map();
 
+  let producers = [];
+  let consumers = [];
+  function vertice(p, c) {
+    let insert = bisect(producers, p);
+    producers.splice(insert, 0, p);
+    consumers.splice(insert, 0, c);
+  }
+
   function signal(initial, equals = Object.is) {
-    let key = sets.push();
+    let key = id++;
     let current = initial;
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) sets.union(key, tracking);
+        if (tracking != null) vertice(key, tracking);
         return current;
       } else {
         // writing
         let val = typeof value === "function" ? value(current) : value;
         if (!equals(current, val)) {
           current = val;
-          let root = sets.find(key);
-          if (wip == null || !wip.has(root)) queue.add(root);
+          if (wip == null || !wip.has(key)) queue.add(key);
           schedule(digest);
         }
       }
@@ -28,7 +35,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   function watch(fn) {
     let clear;
-    let key = sets.push();
+    let key = id++;
     cbs.set(key, (action) => {
       if (typeof clear === "function") clear();
       if (action === "digest") clear = fn();
@@ -41,16 +48,14 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   function derive(get, equals = Object.is) {
     let current;
-    let inputKey = sets.push();
-    let outputKey = sets.push();
+    let inputKey = id++;
+    let outputKey = id++;
     cbs.set(outputKey, (action) => {
       if (action === "digest") {
         let val = get();
         if (!equals(current, val)) {
           current = val;
-          let root = sets.find(inputKey);
-          if (wip != null) wip.add(root);
-          else queue.add(root);
+          if (wip != null) wip.add(inputKey);
         }
       }
     });
@@ -61,15 +66,14 @@ export function ObservableScope(schedule = (cb) => cb()) {
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) sets.union(inputKey, tracking);
+        if (tracking != null) vertice(inputKey, tracking);
         return current;
       } else {
         // writing
         let val = typeof value === "function" ? value(current) : value;
         if (!equals(current, val)) {
           current = val;
-          let root = sets.find(inputKey);
-          if (wip == null || !wip.has(root)) queue.add(root);
+          if (wip == null || !wip.has(inputKey)) queue.add(inputKey);
           schedule(digest);
         }
       }
@@ -78,14 +82,13 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   function observe(get, subscribe, equals = Object.is) {
     let current = get();
-    let key = sets.push();
+    let key = id++;
     let clear = subscribe(() => {
       // writing
       let val = get();
       if (!equals(current, val)) {
         current = val;
-        let root = sets.find(key);
-        if (wip == null || !wip.has(root)) queue.add(root);
+        if (wip == null || !wip.has(key)) queue.add(key);
         schedule(digest);
       }
     });
@@ -93,7 +96,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
       if (action === "dispose") clear();
     });
     return () => {
-      if (tracking != null) sets.union(key, tracking);
+      if (tracking != null) vertice(key, tracking);
       return current;
     };
   }
@@ -122,9 +125,15 @@ export function ObservableScope(schedule = (cb) => cb()) {
     while (queue.size > 0) {
       let temp = (wip = queue);
       queue = new Set();
-      for (let cursor = 0; cursor < sets.cursor; cursor++) {
-        if (temp.has(sets.find(sets.parents[cursor]))) {
-          if (cbs.has(cursor)) cbs.get(cursor)("digest"); // -> this can update queue
+      let cons = new Map(cbs);
+      for (let cursor = 0, key, fn; cursor < producers.length; cursor++) {
+        if (temp.has(producers[cursor])) {
+          key = consumers[cursor];
+          fn = cons.get(key);
+          if (fn != null) {
+            fn("digest");
+            cons.delete(key);
+          }
         }
       }
     }
@@ -134,78 +143,13 @@ export function ObservableScope(schedule = (cb) => cb()) {
   return { signal, watch, derive, observe, peek, batch, dispose };
 }
 
-function DisjointSet() {
-  let cursor = 0;
-  let parents = new Uint32Array(32);
-  let ranks = new Uint32Array(32);
-
-  function push() {
-    let x = cursor++;
-    if (x === parents.length) {
-      parents = grow(parents);
-      ranks = grow(ranks);
-    }
-    parents[x] = x;
-    return x;
+function bisect(values, x, lo = 0, hi = values.length) {
+  let mid, val;
+  while (lo < hi) {
+    mid = (lo + hi) >>> 1;
+    val = values[mid];
+    if (val <= x) lo = mid + 1;
+    else hi = mid;
   }
-
-  /** Find root of `x` set */
-  function find(x) {
-    let y = x;
-    let c, p;
-
-    while (true) {
-      c = parents[y];
-      if (y === c) break;
-      y = c;
-    }
-
-    // Path compression
-    while (true) {
-      p = parents[x];
-      if (p === y) break;
-      parents[x] = y;
-      x = p;
-    }
-
-    return y;
-  }
-
-  /** Define union between two target indices */
-  function union(x, y) {
-    let xRoot = find(x);
-    let yRoot = find(y);
-
-    // x and y are already in the same set
-    if (xRoot === yRoot) return;
-
-    // x and y are not in the same set, we merge them
-    let xRank = ranks[x];
-    let yRank = ranks[y];
-
-    if (xRank < yRank) {
-      parents[xRoot] = yRoot;
-    } else if (xRank > yRank) {
-      parents[yRoot] = xRoot;
-    } else {
-      parents[yRoot] = xRoot;
-      ranks[xRoot]++;
-    }
-  }
-
-  return {
-    parents,
-    get cursor() {
-      return cursor;
-    },
-    push,
-    find,
-    union,
-  };
-}
-
-function grow(v) {
-  let n = new Uint32Array(v.length + 32);
-  n.set(v);
-  return n;
+  return lo;
 }
