@@ -2,7 +2,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
   let id = 0;
   let tracking = null;
   let queue = new Set();
-  let wip = null;
+  let wip = new Set();
   let vs = []; // vertices [(p0, c0), (p1, c1), ...]
   let dis = [];
 
@@ -19,7 +19,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
         let val = typeof value === "function" ? value(current) : value;
         if (!equals(current, val)) {
           current = val;
-          if (wip == null || !wip.has(key)) queue.add(key);
+          if (!wip.has(key)) queue.add(key);
           schedule(digest);
         }
       }
@@ -29,11 +29,11 @@ export function ObservableScope(schedule = (cb) => cb()) {
   function watch(fn) {
     let clear;
     dis.push(() => {
-      if (typeof clear === "function") clear();
+      if (clear != null) clear();
     });
     // capturing
     tracking = () => {
-      if (typeof clear === "function") clear();
+      if (clear != null) clear();
       clear = fn();
     };
     clear = fn();
@@ -48,7 +48,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
       let val = get();
       if (!equals(current, val)) {
         current = val;
-        if (wip != null) wip.add(key);
+        wip.add(key);
       }
     };
     current = get();
@@ -63,7 +63,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
         let val = typeof value === "function" ? value(current) : value;
         if (!equals(current, val)) {
           current = val;
-          if (wip == null || !wip.has(key)) queue.add(key);
+          if (!wip.has(key)) queue.add(key);
           schedule(digest);
         }
       }
@@ -78,7 +78,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
       let val = get();
       if (!equals(current, val)) {
         current = val;
-        if (wip == null || !wip.has(key)) queue.add(key);
+        if (!wip.has(key)) queue.add(key);
         schedule(digest);
       }
     });
@@ -111,8 +111,10 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   function digest() {
     while (queue.size > 0) {
+      let tmp = wip;
       wip = queue;
-      queue = new Set();
+      queue = tmp;
+      tmp.clear();
       for (let cursor = 0, used = new WeakSet(), q = wip, fn, p; cursor < vs.length; cursor += 2) {
         if (vs[cursor] === p || q.has(vs[cursor])) {
           p = vs[cursor];
@@ -124,7 +126,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
         }
       }
     }
-    wip = null;
+    wip.clear();
   }
 
   return { signal, watch, derive, observe, peek, batch, dispose };
