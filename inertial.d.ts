@@ -21,7 +21,7 @@ export type Scope = {
   /** */
   watch: (cb: (() => void) | (() => () => void)) => void;
   /** Get signal values inside derive/watch functions without tracking dependencies */
-  peek: <Value>(get: () => Value) => Value;
+  peek: <Value>(get: Signal<Value> | (() => Value)) => Value;
   /** Update multiple signals at once before performing the update cycle */
   batch: (fn: () => void) => void;
   /** Dispose all scope's observables and effects */
