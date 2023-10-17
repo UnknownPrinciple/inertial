@@ -12,7 +12,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) vertice(vs, key, tracking);
+        if (tracking != null) union(vs, key, tracking);
         return current;
       } else {
         // writing
@@ -59,7 +59,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) vertice(vs, inputKey, tracking);
+        if (tracking != null) union(vs, inputKey, tracking);
         return current;
       } else {
         // writing
@@ -89,7 +89,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
       if (action === "dispose") clear();
     });
     return () => {
-      if (tracking != null) vertice(vs, key, tracking);
+      if (tracking != null) union(vs, key, tracking);
       return current;
     };
   }
@@ -116,10 +116,15 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   function digest() {
     while (queue.size > 0) {
-      let temp = (wip = queue);
+      wip = queue;
       queue = new Set();
-      for (let cursor = 0, cons = new Map(cbs), key, fn; cursor < vs.length; cursor += 2) {
-        if (temp.has(vs[cursor])) {
+      for (
+        let cursor = 0, cons = new Map(cbs), q = wip, key, fn, p;
+        cursor < vs.length;
+        cursor += 2
+      ) {
+        if (vs[cursor] === p || q.has(vs[cursor])) {
+          p = vs[cursor];
           key = vs[cursor + 1];
           fn = cons.get(key);
           if (fn != null) {
@@ -135,17 +140,15 @@ export function ObservableScope(schedule = (cb) => cb()) {
   return { signal, watch, derive, observe, peek, batch, dispose };
 }
 
-function vertice(vs, pi, ci) {
-  vs.splice(bisect2(vs, pi), 0, pi, ci);
-}
-
-function bisect2(values, x, lo = 0, hi = values.length) {
-  let mid;
+function union(vs, pk, ck) {
+  let mid,
+    lo = 0,
+    hi = vs.length;
   while (lo < hi) {
     mid = (lo + hi) >>> 1;
     mid -= mid % 2;
-    if (values[mid] <= x) lo = mid + 2;
+    if (vs[mid] <= pk) lo = mid + 2;
     else hi = mid;
   }
-  return lo;
+  vs.splice(lo, 0, pk, ck);
 }
