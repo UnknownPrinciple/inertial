@@ -4,14 +4,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
   let queue = new Set();
   let wip = null;
   let cbs = new Map();
-
-  let producers = [];
-  let consumers = [];
-  function vertice(p, c) {
-    let insert = bisect(producers, p);
-    producers.splice(insert, 0, p);
-    consumers.splice(insert, 0, c);
-  }
+  let vs = []; // vertices [(p0, c0), (p1, c1), ...]
 
   function signal(initial, equals = Object.is) {
     let key = id++;
@@ -19,7 +12,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) vertice(key, tracking);
+        if (tracking != null) vertice(vs, key, tracking);
         return current;
       } else {
         // writing
@@ -66,7 +59,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) vertice(inputKey, tracking);
+        if (tracking != null) vertice(vs, inputKey, tracking);
         return current;
       } else {
         // writing
@@ -96,7 +89,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
       if (action === "dispose") clear();
     });
     return () => {
-      if (tracking != null) vertice(key, tracking);
+      if (tracking != null) vertice(vs, key, tracking);
       return current;
     };
   }
@@ -125,14 +118,13 @@ export function ObservableScope(schedule = (cb) => cb()) {
     while (queue.size > 0) {
       let temp = (wip = queue);
       queue = new Set();
-      let cons = new Map(cbs);
-      for (let cursor = 0, key, fn; cursor < producers.length; cursor++) {
-        if (temp.has(producers[cursor])) {
-          key = consumers[cursor];
+      for (let cursor = 0, cons = new Map(cbs), key, fn; cursor < vs.length; cursor += 2) {
+        if (temp.has(vs[cursor])) {
+          key = vs[cursor + 1];
           fn = cons.get(key);
           if (fn != null) {
-            fn("digest");
             cons.delete(key);
+            fn("digest");
           }
         }
       }
@@ -143,12 +135,16 @@ export function ObservableScope(schedule = (cb) => cb()) {
   return { signal, watch, derive, observe, peek, batch, dispose };
 }
 
-function bisect(values, x, lo = 0, hi = values.length) {
-  let mid, val;
+function vertice(vs, pi, ci) {
+  vs.splice(bisect2(vs, pi), 0, pi, ci);
+}
+
+function bisect2(values, x, lo = 0, hi = values.length) {
+  let mid;
   while (lo < hi) {
     mid = (lo + hi) >>> 1;
-    val = values[mid];
-    if (val <= x) lo = mid + 1;
+    mid -= mid % 2;
+    if (values[mid] <= x) lo = mid + 2;
     else hi = mid;
   }
   return lo;
