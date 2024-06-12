@@ -391,3 +391,23 @@ test("signal + derive + batch", () => {
   deepEqual(args(compute.mock), [[130], [140], [14], [150]]);
   equal(valueC(), 150);
 });
+
+test("nesting", () => {
+  let parent = ObservableScope();
+  let a = parent.signal(13);
+
+  let child = ObservableScope();
+  let b = child.observe(
+    () => a() > 10,
+    (cb) => parent.watch(() => (a(), cb)),
+  );
+
+  equal(b(), true);
+  a(0);
+  equal(b(), false);
+
+  child.dispose();
+
+  a(100);
+  equal(b(), false);
+});
