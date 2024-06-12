@@ -2,6 +2,10 @@ import { test, mock } from "node:test";
 import { equal, deepEqual } from "node:assert/strict";
 import { ObservableScope } from "./inertial.js";
 
+function args(mock) {
+  return mock.calls.map((call) => call.arguments);
+}
+
 /* The most basic use case is to be able to hold a value in a Signal. */
 test("signal", () => {
   let os = ObservableScope();
@@ -37,7 +41,6 @@ test("signal + watch", () => {
   os.watch(() => watcherA(valueA()));
   let watcherB = mock.fn();
   os.watch(() => watcherB(valueB()));
-  let args = (mock) => mock.calls.map((call) => call.arguments);
   deepEqual(args(watcherA.mock), [[13]]);
   deepEqual(args(watcherB.mock), [[42]]);
   valueA((v) => v + 1);
@@ -56,7 +59,6 @@ test("signal + equals + watch", () => {
   let valueA = os.signal(13, equality);
   let watcherA = mock.fn();
   os.watch(() => watcherA(valueA()));
-  let args = (mock) => mock.calls.map((call) => call.arguments);
   deepEqual(args(watcherA.mock), [[13]]);
   valueA((v) => v + 1);
   deepEqual(args(watcherA.mock), [[13]]);
@@ -86,7 +88,6 @@ test("signal + watch + signal", () => {
   os.watch(() => valueB(valueA() * 3));
   let watcherB = mock.fn();
   os.watch(() => watcherB(valueB()));
-  let args = (mock) => mock.calls.map((call) => call.arguments);
   deepEqual(args(watcherB.mock), [[39]]);
   valueA(10);
   deepEqual(args(watcherB.mock), [[39], [30]]);
@@ -132,7 +133,7 @@ test("signal + derive + equality + watch", () => {
   let compute = os.derive(() => value() * 2, equality);
   let watcher = mock.fn();
   os.watch(() => watcher(compute()));
-  let args = (mock) => mock.calls.map((call) => call.arguments);
+
   deepEqual(args(watcher.mock), [[26]]);
   value((v) => v + 1);
   deepEqual(args(watcher.mock), [[26], [28]]);
@@ -149,7 +150,6 @@ test("signal + derive + watch", () => {
   let compute = os.derive(() => value() * 2);
   let watcher = mock.fn();
   os.watch(() => watcher(value(), compute()));
-  let args = (mock) => mock.calls.map((call) => call.arguments);
   deepEqual(args(watcher.mock), [[13, 26]]);
   value((v) => v + 1);
   deepEqual(args(watcher.mock), [
@@ -173,7 +173,6 @@ test("signal A + signal B + watch B + watch A", () => {
       valueB(200);
     }
   });
-  let args = (mock) => mock.calls.map((call) => call.arguments);
   deepEqual(args(watcherA.mock), [[false]]);
   deepEqual(args(watcherB.mock), [[100]]);
   valueA(true);
@@ -189,7 +188,6 @@ test("signal + derive writable", () => {
   let valueB = os.derive(() => valueA() * 2);
   let watcher = mock.fn();
   os.watch(() => watcher(valueB()));
-  let args = (mock) => mock.calls.map((call) => call.arguments);
   equal(valueB(), 26);
   deepEqual(args(watcher.mock), [[26]]);
   valueB(100);
@@ -224,7 +222,6 @@ test("signal + signal + watch + watch bailout", () => {
   let watcherB = mock.fn();
   os.watch(() => watcherA(a(), b()));
   os.watch(() => watcherB(b()));
-  let args = (mock) => mock.calls.map((call) => call.arguments);
   deepEqual(args(watcherA.mock), [[0, 1]]);
   deepEqual(args(watcherB.mock), [[1]]);
   a((v) => v + 2);
@@ -335,7 +332,6 @@ test("signal + peek + watch", () => {
     watcherB(valueC());
   });
 
-  let args = (mock) => mock.calls.map((call) => call.arguments);
   deepEqual(args(watcherA.mock), [[39]]);
   deepEqual(args(watcherB.mock), [[false]]);
 
@@ -356,7 +352,6 @@ test("signal + derive + batch", () => {
   let compute = mock.fn((v) => v);
   let valueC = os.derive(() => compute(valueA() * valueB()));
 
-  let args = (mock) => mock.calls.map((call) => call.arguments);
   deepEqual(args(compute.mock), [[130]]);
   equal(valueC(), 130);
 

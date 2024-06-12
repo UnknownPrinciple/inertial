@@ -1,8 +1,7 @@
 import { buildSync } from "esbuild";
 import { gzipSync, brotliCompressSync } from "node:zlib";
 
-console.log("inertial");
-build(`
+let inertial = build(`
 import { ObservableScope } from "../inertial.js";
 
 export function vm() {
@@ -22,8 +21,7 @@ export function vm() {
   });
 }`);
 
-console.log("@preact/signals-core");
-build(`
+let preact = build(`
 import { signal, computed, effect } from "@preact/signals-core";
 
 export function vm() {
@@ -45,8 +43,7 @@ export function vm() {
   });
 }`);
 
-console.log("@vue/reactivity");
-build(`
+let vue = build(`
 import { reactive, computed, effect } from "@vue/reactivity";
 
 export function vm() {
@@ -67,8 +64,7 @@ export function vm() {
   return () => window.removeEventListener('offline', handle);
 }`);
 
-console.log("@angular/core");
-build(`
+let angular = build(`
 import { signal, computed, effect } from "@angular/core";
 
 export function vm() {
@@ -90,8 +86,7 @@ export function vm() {
   });
 }`);
 
-console.log("knockout");
-build(`
+let knockout = build(`
 import { observable, computed } from "knockout";
 
 export function vm() {
@@ -112,6 +107,14 @@ export function vm() {
   return () => window.removeEventListener("offline", handle);
 }`);
 
+console.table({
+  inertial: inertial,
+  "@preact/signals-core": preact,
+  "@vue/reactivity": vue,
+  knockout: knockout,
+  "@angular/core": angular,
+});
+
 function build(contents) {
   let a = buildSync({
     bundle: true,
@@ -120,10 +123,13 @@ function build(contents) {
     stdin: { contents, loader: "js", resolveDir: process.cwd() },
   });
   let code = a.outputFiles[0].text;
-  console.log("   min", code.length);
-  let gzbuf = gzipSync(Buffer.from(code));
-  console.log("  gzip", gzbuf.length);
-  let btbuf = brotliCompressSync(Buffer.from(code));
-  console.log("brotli", btbuf.length);
-  console.log("");
+  return {
+    "min (KB)": toKB(code.length),
+    "gzip (KB)": toKB(gzipSync(Buffer.from(code)).length),
+    "brotli (KB)": toKB(brotliCompressSync(Buffer.from(code)).length),
+  };
+}
+
+function toKB(value) {
+  return (((value / 1024) * 100) | 0) / 100;
 }

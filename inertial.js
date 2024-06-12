@@ -3,8 +3,8 @@ export function ObservableScope(schedule = (cb) => cb()) {
   let tracking = null;
   let queue = new Set();
   let wip = new Set();
-  let vs = []; // vertices [(p0, c0), (p1, c1), ...]
-  let dis = [];
+  let vertices = []; // vertices [(p0, c0), (p1, c1), ...]
+  let disposables = [];
 
   function signal(initial, equals = Object.is) {
     let key = id++;
@@ -12,7 +12,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) union(vs, key, tracking);
+        if (tracking != null) union(vertices, key, tracking);
         return current;
       } else {
         // writing
@@ -28,16 +28,28 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   function watch(fn) {
     let clear;
-    dis.push(() => {
+    disposables.push(() => {
       if (clear != null) clear();
     });
-    // capturing
-    tracking = () => {
+    let watcher = () => {
       if (clear != null) clear();
       clear = fn();
     };
+    // capturing
+    tracking = watcher;
     clear = fn();
     tracking = null;
+    return () => {
+      if (clear != null) clear();
+      clear = null;
+      for (let cursor = 0; cursor < vertices.length; ) {
+        if (vertices[cursor + 1] === watcher) {
+          vertices.splice(cursor, 2);
+        } else {
+          cursor += 2;
+        }
+      }
+    };
   }
 
   function derive(get, equals = Object.is) {
@@ -56,7 +68,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) union(vs, key, tracking);
+        if (tracking != null) union(vertices, key, tracking);
         return current;
       } else {
         // writing
@@ -82,9 +94,9 @@ export function ObservableScope(schedule = (cb) => cb()) {
         schedule(digest);
       }
     });
-    dis.push(clear);
+    disposables.push(clear);
     return () => {
-      if (tracking != null) union(vs, key, tracking);
+      if (tracking != null) union(vertices, key, tracking);
       return current;
     };
   }
@@ -106,7 +118,8 @@ export function ObservableScope(schedule = (cb) => cb()) {
   }
 
   function dispose() {
-    for (let fn of dis) fn();
+    vertices = [];
+    for (let fn of disposables) fn();
   }
 
   function digest() {
@@ -115,10 +128,14 @@ export function ObservableScope(schedule = (cb) => cb()) {
       wip = queue;
       queue = tmp;
       tmp.clear();
-      for (let cursor = 0, used = new WeakSet(), q = wip, fn, p; cursor < vs.length; cursor += 2) {
-        if (vs[cursor] === p || q.has(vs[cursor])) {
-          p = vs[cursor];
-          fn = vs[cursor + 1];
+      for (
+        let cursor = 0, used = new WeakSet(), q = wip, fn, p;
+        cursor < vertices.length;
+        cursor += 2
+      ) {
+        if (vertices[cursor] === p || q.has(vertices[cursor])) {
+          p = vertices[cursor];
+          fn = vertices[cursor + 1];
           if (!used.has(fn)) {
             used.add(fn);
             fn();
