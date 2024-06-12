@@ -79,6 +79,28 @@ test("signal + watch + cleanup", () => {
   equal(cleanup.mock.callCount(), 1);
 });
 
+test("signal + watch + unsub", () => {
+  let os = ObservableScope();
+  let value = os.signal(13);
+  let watcherA = mock.fn(() => {
+    value();
+  });
+  let watcherB = mock.fn(() => {
+    value();
+  });
+  let unsubA = os.watch(watcherA);
+  let unsubB = os.watch(watcherB);
+  equal(watcherA.mock.callCount(), 1);
+  equal(watcherB.mock.callCount(), 1);
+  value((v) => v + 1);
+  equal(watcherA.mock.callCount(), 2);
+  equal(watcherB.mock.callCount(), 2);
+  unsubA();
+  value((v) => v + 1);
+  equal(watcherA.mock.callCount(), 2);
+  equal(watcherB.mock.callCount(), 3);
+});
+
 /** There has to be some resolution for cases where a signal is being updated
 inside a watcher that is triggered by other signal update. */
 test("signal + watch + signal", () => {
@@ -196,6 +218,8 @@ test("signal + derive writable", () => {
   valueA(26);
   equal(valueB(), 52);
   deepEqual(args(watcher.mock), [[26], [100], [52]]);
+  valueB((v) => v * 2);
+  deepEqual(args(watcher.mock), [[26], [100], [52], [104]]);
 });
 
 test("signal + derive bailout", () => {
