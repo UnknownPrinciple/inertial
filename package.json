@@ -1,10 +1,14 @@
 {
   "name": "inertial",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
+  "description": "A tiny library for integrating reactive signals anywhere.",
+  "author": "Oleksii Raspopov",
+  "repository": "UnknownPrinciple/inertial",
   "main": "./inertial.js",
   "module": "./inertial.js",
   "exports": "./inertial.js",
+  "sideEffects": false,
   "files": [
     "inertial.d.ts",
     "inertial.js"
