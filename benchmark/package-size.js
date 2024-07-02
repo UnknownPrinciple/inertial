@@ -1,8 +1,9 @@
 import { buildSync } from "esbuild";
+import { dirname } from "node:path";
 import { gzipSync, brotliCompressSync } from "node:zlib";
 
 let inertial = build(`
-import { ObservableScope } from "../inertial.js";
+import { ObservableScope } from "inertial";
 
 export function vm() {
   let os = ObservableScope();
@@ -116,11 +117,12 @@ console.table({
 });
 
 function build(contents) {
+  let root = dirname(new URL(import.meta.url).pathname);
   let a = buildSync({
     bundle: true,
     write: false,
     minify: true,
-    stdin: { contents, loader: "js", resolveDir: process.cwd() },
+    stdin: { contents, loader: "js", resolveDir: root },
   });
   let code = a.outputFiles[0].text;
   return {

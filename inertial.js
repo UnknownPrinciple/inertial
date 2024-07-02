@@ -28,9 +28,6 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   function watch(fn) {
     let clear;
-    disposables.push(() => {
-      if (clear != null) clear();
-    });
     let watcher = () => {
       if (clear != null) clear();
       clear = fn();
@@ -39,7 +36,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     tracking = watcher;
     clear = fn();
     tracking = null;
-    return () => {
+    let dispose = () => {
       if (clear != null) clear();
       clear = null;
       for (let cursor = 0; cursor < vertices.length; ) {
@@ -50,6 +47,8 @@ export function ObservableScope(schedule = (cb) => cb()) {
         }
       }
     };
+    disposables.push(dispose);
+    return dispose;
   }
 
   function derive(get, equals = Object.is) {
@@ -117,6 +116,32 @@ export function ObservableScope(schedule = (cb) => cb()) {
     schedule(digest);
   }
 
+  function fork(fn) {
+    let startId = id;
+    let currentDisposables = disposables;
+    disposables = [];
+    fn();
+    let newId = id;
+    let tempDisposables = disposables;
+    disposables = currentDisposables;
+    let clear = () => {
+      for (let fn of tempDisposables) fn();
+      for (let cursor = 0; cursor < vertices.length; ) {
+        if (vertices[cursor] >= startId && vertices[cursor] < newId) {
+          vertices.splice(cursor, 2);
+        } else {
+          cursor += 2;
+        }
+      }
+    };
+    let dispose = () => {
+      if (clear != null) clear();
+      clear = null;
+    };
+    disposables.push(dispose);
+    return dispose;
+  }
+
   function dispose() {
     vertices = [];
     for (let fn of disposables) fn();
@@ -146,7 +171,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     wip.clear();
   }
 
-  return { signal, watch, derive, observe, peek, batch, dispose };
+  return { signal, watch, derive, observe, peek, batch, fork, dispose };
 }
 
 function union(vs, pk, ck) {

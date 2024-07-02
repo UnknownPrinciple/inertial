@@ -99,6 +99,10 @@ test("signal + watch + unsub", () => {
   value((v) => v + 1);
   equal(watcherA.mock.callCount(), 2);
   equal(watcherB.mock.callCount(), 3);
+  unsubB();
+  value((v) => v + 1);
+  equal(watcherA.mock.callCount(), 2);
+  equal(watcherB.mock.callCount(), 3);
 });
 
 /** There has to be some resolution for cases where a signal is being updated
@@ -397,17 +401,61 @@ test("nesting", () => {
   let a = parent.signal(13);
 
   let child = ObservableScope();
-  let b = child.observe(
-    () => a() > 10,
-    (cb) => parent.watch(() => (a(), cb)),
-  );
+
+  /**
+   * @template T
+   * @param {import("./inertial").Scope} child
+   * @param {import("./inertial").Scope} parent
+   * @param {() => T} get
+   * @param {T} [value]
+   * @returns {import("./inertial").Signal<T>}
+   */
+  function connect(child, parent, get, value) {
+    return child.observe(
+      () => value,
+      (cb) => parent.watch(() => ((value = get()), cb())),
+    );
+  }
+
+  let get = mock.fn(() => a() > 10);
+  let b = connect(child, parent, get);
 
   equal(b(), true);
   a(0);
   equal(b(), false);
+  equal(get.mock.callCount(), 2);
 
   child.dispose();
 
   a(100);
   equal(b(), false);
+  equal(get.mock.callCount(), 2);
+});
+
+test("fork", () => {
+  let os = ObservableScope();
+  let a = os.signal(1);
+  let b = os.signal(2);
+  let temp = {};
+  let getC;
+  let dispose = os.fork(() => {
+    getC = mock.fn(() => a() + b());
+    temp.c = os.signal();
+    os.watch(() => temp.c(getC()));
+  });
+  let d = os.derive(() => temp.c() * 2);
+  let e = os.derive(() => a() + b());
+  equal(temp.c(), 3);
+  equal(d(), 6);
+  equal(e(), 3);
+  a(2);
+  equal(temp.c(), 4);
+  equal(d(), 8);
+  equal(e(), 4);
+  dispose();
+  a(3);
+  equal(getC.mock.callCount(), 2);
+  equal(temp.c(), 4);
+  equal(d(), 8);
+  equal(e(), 5);
 });
