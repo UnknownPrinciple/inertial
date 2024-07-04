@@ -1,6 +1,6 @@
 {
   "name": "inertial",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "description": "A tiny library for integrating reactive signals anywhere.",
   "author": "Oleksii Raspopov",
