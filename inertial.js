@@ -150,7 +150,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
   function deref(...signals) {
     tracking = {
       add: (node) => {
-        if (node & DISPOSER) node.dispose();
+        if (node.flag & DISPOSER) node.dispose();
         (node.prev.next = node.next).prev = node.prev;
       },
     };

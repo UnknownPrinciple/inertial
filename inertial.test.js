@@ -260,6 +260,22 @@ test("signal + signal + watch + watch bailout", () => {
   deepEqual(args(watcherB.mock), [[1]]);
 });
 
+test("signal + derive + watch + derive write", () => {
+  let os = ObservableScope();
+  let a = os.signal(1);
+  let b = os.derive(() => a() * 2);
+  os.watch(() => {
+    if (a() > 1) {
+      b(100);
+    }
+  });
+  equal(a(), 1);
+  equal(b(), 2);
+  a((v) => v + 1);
+  equal(a(), 2);
+  equal(b(), 100);
+});
+
 /* Borrow a test case from Angular signals. */
 test("signal + derive diamond", () => {
   let os = ObservableScope();
@@ -453,4 +469,24 @@ test("deref", () => {
   equal(c(), 4);
   equal(d(), 8);
   equal(e(), 5);
+});
+
+test("deref + disposer", () => {
+  let os = ObservableScope();
+  let value = mock.fn(() => 1);
+  let unsub = mock.fn();
+  let trigger = mock.fn();
+  let a = os.observe(value, (cb) => {
+    trigger.mock.mockImplementation(cb);
+    return unsub;
+  });
+  equal(a(), 1);
+  value.mock.mockImplementation(() => 2);
+  trigger();
+  equal(a(), 2);
+  os.deref(a);
+  equal(unsub.mock.callCount(), 1);
+  equal(a(), 2);
+  trigger();
+  equal(a(), 2);
 });
