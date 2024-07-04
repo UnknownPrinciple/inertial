@@ -432,30 +432,25 @@ test("nesting", () => {
   equal(get.mock.callCount(), 2);
 });
 
-test("fork", () => {
+test("deref", () => {
   let os = ObservableScope();
   let a = os.signal(1);
   let b = os.signal(2);
-  let temp = {};
-  let getC;
-  let dispose = os.fork(() => {
-    getC = mock.fn(() => a() + b());
-    temp.c = os.signal();
-    os.watch(() => temp.c(getC()));
-  });
-  let d = os.derive(() => temp.c() * 2);
+  let getC = mock.fn(() => a() + b());
+  let c = os.derive(getC);
+  let d = os.derive(() => c() * 2);
   let e = os.derive(() => a() + b());
-  equal(temp.c(), 3);
+  equal(c(), 3);
   equal(d(), 6);
   equal(e(), 3);
   a(2);
-  equal(temp.c(), 4);
+  equal(c(), 4);
   equal(d(), 8);
   equal(e(), 4);
-  dispose();
+  os.deref(c);
   a(3);
   equal(getC.mock.callCount(), 2);
-  equal(temp.c(), 4);
+  equal(c(), 4);
   equal(d(), 8);
   equal(e(), 5);
 });

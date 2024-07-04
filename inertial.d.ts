@@ -50,8 +50,8 @@ export type Scope = {
   /** Update multiple signals at once before starting the update cycle. */
   batch(fn: () => void): void;
 
-  /** Define temporary scope of signals that can be disposed separately. */
-  fork(fn: () => void): void;
+  /** Remove any reactive signal from the scope. */
+  deref(...fn: Array<Signal<any>>): void;
 
   /** Dispose all scope's observables and effects. */
   dispose(): void;

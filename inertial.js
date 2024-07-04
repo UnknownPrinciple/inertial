@@ -1,81 +1,100 @@
+const PROVIDER = 0b001;
+const CONSUMER = 0b010;
+const DISPOSER = 0b100;
+
 export function ObservableScope(schedule = (cb) => cb()) {
-  let id = 0;
+  let head = { prev: null, next: null };
+  let tail = { prev: null, next: null };
+  (head.next = tail).prev = head;
+
+  /** @type {WeakSet<any> | null} */
   let tracking = null;
-  let queue = new Set();
-  let wip = new Set();
-  let vertices = []; // vertices [(p0, c0), (p1, c1), ...]
-  let disposables = [];
+  let marking = [];
+  let future = [];
+  let flushing = false;
 
   function signal(initial, equals = Object.is) {
-    let key = id++;
+    let node = { flag: PROVIDER, prev: tail.prev, next: tail };
+    tail.prev = tail.prev.next = node;
     let current = initial;
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) union(vertices, key, tracking);
+        if (tracking != null) tracking.add(node);
         return current;
       } else {
         // writing
         let val = typeof value === "function" ? value(current) : value;
-        if (!equals(current, val)) {
+        if (!equals(val, current)) {
           current = val;
-          if (!wip.has(key)) queue.add(key);
-          schedule(digest);
+          if (!flushing) {
+            marking.push(node);
+            schedule(digest);
+          } else {
+            future.push(node);
+          }
         }
       }
     };
   }
 
   function watch(fn) {
-    let clear;
-    let watcher = () => {
-      if (clear != null) clear();
-      clear = fn();
+    tracking = new WeakSet();
+    let clear = fn();
+    let node = {
+      flag: CONSUMER + DISPOSER,
+      tracking,
+      update() {
+        if (typeof clear === "function") clear();
+        clear = fn();
+      },
+      dispose() {
+        if (typeof clear === "function") clear();
+        clear = null;
+        (node.prev.next = node.next).prev = node.prev;
+      },
+      prev: tail.prev,
+      next: tail,
     };
-    // capturing
-    tracking = watcher;
-    clear = fn();
+    tail.prev = tail.prev.next = node;
     tracking = null;
-    let dispose = () => {
-      if (clear != null) clear();
-      clear = null;
-      for (let cursor = 0; cursor < vertices.length; ) {
-        if (vertices[cursor + 1] === watcher) {
-          vertices.splice(cursor, 2);
-        } else {
-          cursor += 2;
-        }
-      }
-    };
-    disposables.push(dispose);
-    return dispose;
+    return node.dispose;
   }
 
   function derive(get, equals = Object.is) {
-    let current;
-    let key = id++;
-    // capturing
-    tracking = () => {
-      let val = get();
-      if (!equals(current, val)) {
-        current = val;
-        wip.add(key);
-      }
+    tracking = new WeakSet();
+    let current = get();
+    let node = {
+      flag: PROVIDER + CONSUMER,
+      tracking,
+      update() {
+        let value = get();
+        if (!equals(value, current)) {
+          current = value;
+          marking.push(node);
+        }
+      },
+      prev: tail.prev,
+      next: tail,
     };
-    current = get();
+    tail.prev = tail.prev.next = node;
     tracking = null;
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) union(vertices, key, tracking);
+        if (tracking != null) tracking.add(node);
         return current;
       } else {
         // writing
         let val = typeof value === "function" ? value(current) : value;
-        if (!equals(current, val)) {
+        if (!equals(val, current)) {
           current = val;
-          if (!wip.has(key)) queue.add(key);
-          schedule(digest);
+          if (!flushing) {
+            marking.push(node);
+            schedule(digest);
+          } else {
+            future.push(node);
+          }
         }
       }
     };
@@ -83,19 +102,28 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   function observe(get, subscribe, equals = Object.is) {
     let current = get();
-    let key = id++;
-    let clear = subscribe(() => {
-      // writing
-      let val = get();
-      if (!equals(current, val)) {
-        current = val;
-        if (!wip.has(key)) queue.add(key);
+    let clear;
+    let node = {
+      flag: PROVIDER + DISPOSER,
+      dispose() {
+        if (typeof clear === "function") clear();
+        clear = null;
+        (node.prev.next = node.next).prev = node.prev;
+      },
+      prev: tail.prev,
+      next: tail,
+    };
+    tail.prev = tail.prev.next = node;
+    clear = subscribe(() => {
+      let value = get();
+      if (!equals(value, current)) {
+        current = value;
+        marking.push(node);
         schedule(digest);
       }
     });
-    disposables.push(clear);
     return () => {
-      if (tracking != null) union(vertices, key, tracking);
+      if (tracking != null) tracking.add(node);
       return current;
     };
   }
@@ -111,78 +139,51 @@ export function ObservableScope(schedule = (cb) => cb()) {
   function batch(fn) {
     let temp = schedule;
     schedule = () => {};
+    // temporary measure since digest starts a cycle from marking[0] node
+    // which may not be the earliest node in a batch routine
+    marking = [head];
     fn();
     schedule = temp;
-    schedule(digest);
+    if (marking.length > 0) schedule(digest);
   }
 
-  function fork(fn) {
-    let startId = id;
-    let currentDisposables = disposables;
-    disposables = [];
-    fn();
-    let newId = id;
-    let tempDisposables = disposables;
-    disposables = currentDisposables;
-    let clear = () => {
-      for (let fn of tempDisposables) fn();
-      for (let cursor = 0; cursor < vertices.length; ) {
-        if (vertices[cursor] >= startId && vertices[cursor] < newId) {
-          vertices.splice(cursor, 2);
-        } else {
-          cursor += 2;
-        }
-      }
+  function deref(...signals) {
+    tracking = {
+      add: (node) => {
+        if (node & DISPOSER) node.dispose();
+        (node.prev.next = node.next).prev = node.prev;
+      },
     };
-    let dispose = () => {
-      if (clear != null) clear();
-      clear = null;
-    };
-    disposables.push(dispose);
-    return dispose;
+
+    for (let signal of signals) signal();
+
+    tracking = null;
   }
 
   function dispose() {
-    vertices = [];
-    for (let fn of disposables) fn();
+    let cursor = head;
+    while ((cursor = cursor.next) !== tail) {
+      if (cursor.flag & DISPOSER) cursor.dispose();
+    }
+    head = { prev: null, next: null };
+    tail = { prev: null, next: null };
+    (head.next = tail).prev = head;
   }
 
   function digest() {
-    while (queue.size > 0) {
-      let tmp = wip;
-      wip = queue;
-      queue = tmp;
-      tmp.clear();
-      for (
-        let cursor = 0, used = new WeakSet(), q = wip, fn, p;
-        cursor < vertices.length;
-        cursor += 2
-      ) {
-        if (vertices[cursor] === p || q.has(vertices[cursor])) {
-          p = vertices[cursor];
-          fn = vertices[cursor + 1];
-          if (!used.has(fn)) {
-            used.add(fn);
-            fn();
-          }
-        }
+    flushing = true;
+    let cursor = marking[0];
+    while ((cursor = cursor.next) !== tail) {
+      if (cursor.flag & CONSUMER && marking.some((node) => cursor.tracking.has(node))) {
+        cursor.update();
       }
     }
-    wip.clear();
+    flushing = false;
+    if (future.length > 0) {
+      marking = [future.shift()];
+      schedule(digest);
+    } else marking = [];
   }
 
-  return { signal, watch, derive, observe, peek, batch, fork, dispose };
-}
-
-function union(vs, pk, ck) {
-  let mid,
-    lo = 0,
-    hi = vs.length;
-  while (lo < hi) {
-    mid = (lo + hi) >>> 1;
-    mid -= mid % 2;
-    if (vs[mid] <= pk) lo = mid + 2;
-    else hi = mid;
-  }
-  vs.splice(lo, 0, pk, ck);
+  return { signal, watch, derive, observe, peek, batch, deref, dispose };
 }
