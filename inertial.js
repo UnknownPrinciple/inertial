@@ -144,7 +144,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
     marking = [head];
     fn();
     schedule = temp;
-    if (marking.length > 0) schedule(digest);
+    schedule(digest);
   }
 
   function deref(...signals) {
@@ -162,7 +162,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   function dispose() {
     let cursor = head;
-    while ((cursor = cursor.next) !== tail) {
+    while (cursor != null && (cursor = cursor.next) !== tail) {
       if (cursor.flag & DISPOSER) cursor.dispose();
     }
     head = { prev: null, next: null };
@@ -173,8 +173,11 @@ export function ObservableScope(schedule = (cb) => cb()) {
   function digest() {
     flushing = true;
     let cursor = marking[0];
-    while ((cursor = cursor.next) !== tail) {
-      if (cursor.flag & CONSUMER && marking.some((node) => cursor.tracking.has(node))) {
+    while (cursor != null && (cursor = cursor.next) !== tail) {
+      if (
+        cursor.flag & CONSUMER &&
+        marking.some((node) => cursor.tracking.has(node))
+      ) {
         cursor.update();
       }
     }
