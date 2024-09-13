@@ -2,7 +2,7 @@ const PROVIDER = 0b001;
 const CONSUMER = 0b010;
 const DISPOSER = 0b100;
 
-export function ObservableScope(schedule = (cb) => cb()) {
+export function ObservableScope(schedule = immediate) {
   let head = { prev: null, next: null };
   let tail = { prev: null, next: null };
   (head.next = tail).prev = head;
@@ -138,10 +138,10 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   function batch(fn) {
     let temp = schedule;
-    schedule = () => {};
     // temporary measure since digest starts a cycle from marking[0] node
     // which may not be the earliest node in a batch routine
     marking = [head];
+    schedule = noop;
     fn();
     schedule = temp;
     schedule(digest);
@@ -149,7 +149,7 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   function deref(...signals) {
     tracking = {
-      add: (node) => {
+      add(node) {
         if (node.flag & DISPOSER) node.dispose();
         (node.prev.next = node.next).prev = node.prev;
       },
@@ -190,3 +190,9 @@ export function ObservableScope(schedule = (cb) => cb()) {
 
   return { signal, watch, derive, observe, peek, batch, deref, dispose };
 }
+
+function immediate(cb) {
+  cb();
+}
+
+function noop() {}
