@@ -9,9 +9,9 @@ export function ObservableScope(schedule = immediate) {
 
   /** @type {WeakSet<any> | null} */
   let tracking = null;
-  let marking = [];
-  let future = [];
   let flushing = false;
+  let marking = [];
+  let pending = [];
 
   function signal(initial, equals = Object.is) {
     let node = { flag: PROVIDER, prev: tail.prev, next: tail };
@@ -31,7 +31,7 @@ export function ObservableScope(schedule = immediate) {
             marking.push(node);
             schedule(digest);
           } else {
-            future.push(node);
+            pending.push(node);
           }
         }
       }
@@ -93,7 +93,7 @@ export function ObservableScope(schedule = immediate) {
             marking.push(node);
             schedule(digest);
           } else {
-            future.push(node);
+            pending.push(node);
           }
         }
       }
@@ -138,9 +138,6 @@ export function ObservableScope(schedule = immediate) {
 
   function batch(fn) {
     let temp = schedule;
-    // temporary measure since digest starts a cycle from marking[0] node
-    // which may not be the earliest node in a batch routine
-    marking = [head];
     schedule = noop;
     fn();
     schedule = temp;
@@ -162,7 +159,7 @@ export function ObservableScope(schedule = immediate) {
 
   function dispose() {
     let cursor = head;
-    while (cursor != null && (cursor = cursor.next) !== tail) {
+    while ((cursor = cursor.next) !== tail && cursor != null) {
       if (cursor.flag & DISPOSER) cursor.dispose();
     }
     head = { prev: null, next: null };
@@ -172,8 +169,12 @@ export function ObservableScope(schedule = immediate) {
 
   function digest() {
     flushing = true;
-    let cursor = marking[0];
-    while (cursor != null && (cursor = cursor.next) !== tail) {
+    let cursor = head;
+    while (
+      marking.length > 0 &&
+      (cursor = cursor.next) !== tail &&
+      cursor != null
+    ) {
       if (
         cursor.flag & CONSUMER &&
         marking.some((node) => cursor.tracking.has(node))
@@ -182,8 +183,9 @@ export function ObservableScope(schedule = immediate) {
       }
     }
     flushing = false;
-    if (future.length > 0) {
-      marking = [future.shift()];
+    if (pending.length > 0) {
+      marking = pending;
+      pending = [];
       schedule(digest);
     } else marking = [];
   }
