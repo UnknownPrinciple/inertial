@@ -14,28 +14,14 @@ export function ObservableScope(schedule = immediate) {
   let pending = [];
 
   function signal(initial, equals = Object.is) {
-    let node = { flag: PROVIDER, prev: tail.prev, next: tail };
-    tail.prev = tail.prev.next = node;
-    let current = initial;
-    return (value) => {
-      if (typeof value === "undefined") {
-        // reading
-        if (tracking != null) tracking.add(node);
-        return current;
-      } else {
-        // writing
-        let val = typeof value === "function" ? value(current) : value;
-        if (!equals(val, current)) {
-          current = val;
-          if (!flushing) {
-            marking.push(node);
-            schedule(digest);
-          } else {
-            pending.push(node);
-          }
-        }
-      }
+    let node = {
+      current: initial,
+      flag: PROVIDER,
+      prev: tail.prev,
+      next: tail,
     };
+    tail.prev = tail.prev.next = node;
+    return wrap(node, equals);
   }
 
   function watch(fn) {
@@ -66,8 +52,8 @@ export function ObservableScope(schedule = immediate) {
 
   function derive(get, equals = Object.is) {
     tracking = new WeakSet();
-    let current = get();
     let node = {
+      current: get(),
       flag: PROVIDER + CONSUMER,
       tracking,
       update() {
@@ -75,8 +61,8 @@ export function ObservableScope(schedule = immediate) {
         let value = get();
         node.tracking = tracking;
         tracking = null;
-        if (!equals(value, current)) {
-          current = value;
+        if (!equals(value, node.current)) {
+          node.current = value;
           marking.push(node);
         }
       },
@@ -85,31 +71,13 @@ export function ObservableScope(schedule = immediate) {
     };
     tail.prev = tail.prev.next = node;
     tracking = null;
-    return (value) => {
-      if (typeof value === "undefined") {
-        // reading
-        if (tracking != null) tracking.add(node);
-        return current;
-      } else {
-        // writing
-        let val = typeof value === "function" ? value(current) : value;
-        if (!equals(val, current)) {
-          current = val;
-          if (!flushing) {
-            marking.push(node);
-            schedule(digest);
-          } else {
-            pending.push(node);
-          }
-        }
-      }
-    };
+    return wrap(node, equals);
   }
 
   function observe(get, subscribe, equals = Object.is) {
-    let current = get();
     let clear;
     let node = {
+      current: get(),
       flag: PROVIDER + DISPOSER,
       dispose() {
         if (typeof clear === "function") clear();
@@ -122,16 +90,12 @@ export function ObservableScope(schedule = immediate) {
     tail.prev = tail.prev.next = node;
     clear = subscribe(() => {
       let value = get();
-      if (!equals(value, current)) {
-        current = value;
-        marking.push(node);
-        schedule(digest);
+      if (!equals(value, node.current)) {
+        node.current = value;
+        mark(node);
       }
     });
-    return () => {
-      if (tracking != null) tracking.add(node);
-      return current;
-    };
+    return wrap(node, equals);
   }
 
   function peek(get) {
@@ -171,6 +135,32 @@ export function ObservableScope(schedule = immediate) {
     head = { prev: null, next: null };
     tail = { prev: null, next: null };
     (head.next = tail).prev = head;
+  }
+
+  function wrap(node, equals) {
+    return (value) => {
+      if (typeof value === "undefined") {
+        // reading
+        if (tracking != null) tracking.add(node);
+        return node.current;
+      } else {
+        // writing
+        let val = typeof value === "function" ? value(node.current) : value;
+        if (!equals(val, node.current)) {
+          node.current = val;
+          mark(node);
+        }
+      }
+    };
+  }
+
+  function mark(node) {
+    if (flushing) {
+      pending.push(node);
+    } else {
+      marking.push(node);
+      schedule(digest);
+    }
   }
 
   function digest() {
