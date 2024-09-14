@@ -46,7 +46,10 @@ export function ObservableScope(schedule = immediate) {
       tracking,
       update() {
         if (typeof clear === "function") clear();
+        tracking = new WeakSet();
         clear = fn();
+        node.tracking = tracking;
+        tracking = null;
       },
       dispose() {
         if (typeof clear === "function") clear();
@@ -68,7 +71,10 @@ export function ObservableScope(schedule = immediate) {
       flag: PROVIDER + CONSUMER,
       tracking,
       update() {
+        tracking = new WeakSet();
         let value = get();
+        node.tracking = tracking;
+        tracking = null;
         if (!equals(value, current)) {
           current = value;
           marking.push(node);

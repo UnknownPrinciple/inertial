@@ -242,6 +242,34 @@ test("signal + derive bailout", () => {
   equal(dm.mock.callCount(), 3);
 });
 
+test("signal + derive dynamic", () => {
+  let os = ObservableScope();
+  let a = os.signal(0);
+  let b = os.signal(false);
+  let cm = mock.fn(() => {
+    if (b()) return a();
+    return -1;
+  });
+  let c = os.derive(cm);
+  equal(c(), -1);
+  equal(cm.mock.callCount(), 1);
+  a((v) => v + 1);
+  equal(cm.mock.callCount(), 1);
+  equal(c(), -1);
+  b(true);
+  equal(cm.mock.callCount(), 2);
+  equal(c(), 1);
+  a((v) => v + 1);
+  equal(cm.mock.callCount(), 3);
+  equal(c(), 2);
+  b(false);
+  equal(cm.mock.callCount(), 4);
+  equal(c(), -1);
+  a((v) => v + 1);
+  equal(cm.mock.callCount(), 4);
+  equal(c(), -1);
+});
+
 test("signal + signal + watch + watch bailout", () => {
   let os = ObservableScope();
   let a = os.signal(0);
