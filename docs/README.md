@@ -159,6 +159,29 @@ count(20);
 // No output
 ```
 
+### Working with dependencies
+
+When signals are read in `derive()` or `watch()` functions, they are tracked as dependencies so the
+derived signal or the watcher can re-run when the used signal is updated. These dependencies are
+dynamic so can be used under some conditions:
+
+```js
+let enabled = os.signal(false);
+let count = os.signal(0);
+
+os.watch(() => {
+  if (enabled()) {
+    console.log(`The count is ${count()}.`);
+  } else {
+    console.log("Nothing to see here!");
+  }
+});
+```
+
+In this example, the watcher going to log "Nothing to see here!" while value of `enabled` remains
+`false`. Reading `count` earlier than the condition where it is used means logging "Nothing to see
+here" every time `count` is updated, even though it's not going to be actually used.
+
 ### Observing External Sources
 
 The `observe` method creates a signal that subscribes to an external source of values:
