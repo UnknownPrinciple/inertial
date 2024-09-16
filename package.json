@@ -14,5 +14,8 @@
   "files": [
     "inertial.d.ts",
     "inertial.js"
-  ]
+  ],
+  "prettier": {
+    "printWidth": 100
+  }
 }

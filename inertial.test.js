@@ -456,7 +456,9 @@ test("nesting", () => {
   function connect(child, parent, get, value) {
     return child.observe(
       () => value,
-      (cb) => parent.watch(() => ((value = get()), cb())),
+      (cb, signal) => {
+        signal.onabort = parent.watch(() => ((value = get()), cb()));
+      },
     );
   }
 

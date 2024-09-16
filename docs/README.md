@@ -133,13 +133,12 @@ watcher:
 
 ```js
 let positionX = os.signal(0);
-
-os.watch(() => {
+os.watch((signal) => {
   let animation = element.animate(
     { transform: `translateX(${positionX()}px)` },
     { fill: "forwards" },
   );
-  return () => animation.cancel();
+  signal.onabort = () => animation.cancel();
 });
 ```
 
@@ -189,9 +188,8 @@ The `observe` method creates a signal that subscribes to an external source of v
 ```js
 let onLine = os.observe(
   () => navigator.onLine,
-  (cb) => {
-    window.addEventListener("offline", cb);
-    return () => window.removeEventListener("offline", cb);
+  (cb, signal) => {
+    window.addEventListener("offline", cb, { signal });
   },
 );
 ```

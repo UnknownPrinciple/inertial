@@ -14,12 +14,8 @@ export function ObservableScope(schedule = immediate) {
   let pending = [];
 
   function signal(initial, equals = Object.is) {
-    let node = {
-      current: initial,
-      flag: PROVIDER,
-      prev: tail.prev,
-      next: tail,
-    };
+    let node = { current: initial, flag: PROVIDER, prev: null, next: null };
+    node.prev = (node.next = tail).prev;
     tail.prev = tail.prev.next = node;
     return wrap(node, equals);
   }
@@ -42,9 +38,10 @@ export function ObservableScope(schedule = immediate) {
         ctl.abort();
         (node.prev.next = node.next).prev = node.prev;
       },
-      prev: tail.prev,
-      next: tail,
+      prev: null,
+      next: null,
     };
+    node.prev = (node.next = tail).prev;
     tail.prev = tail.prev.next = node;
     tracking = null;
     return node.dispose;
@@ -66,9 +63,10 @@ export function ObservableScope(schedule = immediate) {
           marking.push(node);
         }
       },
-      prev: tail.prev,
-      next: tail,
+      prev: null,
+      next: null,
     };
+    node.prev = (node.next = tail).prev;
     tail.prev = tail.prev.next = node;
     tracking = null;
     return wrap(node, equals);
@@ -83,9 +81,10 @@ export function ObservableScope(schedule = immediate) {
         ctl.abort();
         (node.prev.next = node.next).prev = node.prev;
       },
-      prev: tail.prev,
-      next: tail,
+      prev: null,
+      next: null,
     };
+    node.prev = (node.next = tail).prev;
     tail.prev = tail.prev.next = node;
     subscribe(() => {
       let value = get();
@@ -165,15 +164,8 @@ export function ObservableScope(schedule = immediate) {
   function digest() {
     flushing = true;
     let cursor = head;
-    while (
-      marking.length > 0 &&
-      (cursor = cursor.next) !== tail &&
-      cursor != null
-    ) {
-      if (
-        cursor.flag & CONSUMER &&
-        marking.some((node) => cursor.tracking.has(node))
-      ) {
+    while (marking.length > 0 && (cursor = cursor.next) !== tail && cursor != null) {
+      if (cursor.flag & CONSUMER && marking.some((node) => cursor.tracking.has(node))) {
         cursor.update();
       }
     }
