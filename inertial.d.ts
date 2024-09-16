@@ -22,6 +22,20 @@ export type Scope = {
     ): Signal<Value>;
   };
 
+  produce: {
+    /** */
+    <Value>(
+      value: Value,
+      produce: (value: Signal<Value>, signal: AbortSignal) => void,
+    ): Signal<Value>;
+    /** */
+    <Value>(
+      value: Value,
+      produce: (value: Signal<Value>, signal: AbortSignal) => void,
+      equals: (prev: Value, next: Value) => boolean,
+    ): Signal<Value>;
+  };
+
   signal: {
     /** Create a reactive value. */
     <Value>(value: Value): Signal<Value>;

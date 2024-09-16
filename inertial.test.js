@@ -79,6 +79,24 @@ test("signal + watch + cleanup", () => {
   equal(cleanup.mock.callCount(), 1);
 });
 
+test("signal + watch + abort", () => {
+  let os = ObservableScope();
+  let value = os.signal(true);
+  let handle = mock.fn();
+  let et = new EventTarget();
+  os.watch(async (signal) => {
+    if (value()) {
+      et.addEventListener("update", handle, { signal });
+    }
+  });
+  equal(handle.mock.callCount(), 0);
+  et.dispatchEvent(new Event("update"));
+  equal(handle.mock.callCount(), 1);
+  value(false);
+  et.dispatchEvent(new Event("update"));
+  equal(handle.mock.callCount(), 1);
+});
+
 test("signal + watch + unsub", () => {
   let os = ObservableScope();
   let value = os.signal(13);
@@ -388,6 +406,74 @@ test("observe + watch", () => {
   equal(cleanup.mock.callCount(), 2);
 });
 
+test("produce + watch", () => {
+  let os = ObservableScope();
+
+  let et = new EventTarget();
+  let a = os.produce(0, (value, signal) => {
+    et.addEventListener("update", (event) => value(event.detail), { signal });
+  });
+
+  equal(a(), 0);
+
+  let received;
+  let cleanup = mock.fn();
+  let b = os.signal(true);
+  os.watch((signal) => {
+    if (!b()) return;
+    received = a();
+    signal.onabort = cleanup;
+  });
+  let c = os.derive(() => a());
+
+  equal(received, 0);
+
+  et.dispatchEvent(new CustomEvent("update", { detail: 13 }));
+
+  equal(a(), 13);
+  equal(received, 13);
+  equal(c(), 13);
+  equal(cleanup.mock.callCount(), 1);
+
+  b(false);
+
+  et.dispatchEvent(new CustomEvent("update", { detail: 100 }));
+
+  equal(a(), 100);
+  equal(received, 13);
+  equal(c(), 100);
+  equal(cleanup.mock.callCount(), 2);
+
+  os.dispose();
+
+  et.dispatchEvent(new CustomEvent("update", { detail: 200 }));
+
+  equal(a(), 100);
+  equal(received, 13);
+  equal(c(), 100);
+  equal(cleanup.mock.callCount(), 2);
+});
+
+test("produce + track", () => {
+  let os = ObservableScope();
+  let base = os.signal(2);
+  let et = new EventTarget();
+  let v = os.produce(0, (value, signal) => {
+    let multiplier = base();
+    et.addEventListener("update", (event) => value(event.detail * multiplier), { signal });
+  });
+
+  equal(v(), 0);
+  et.dispatchEvent(new CustomEvent("update", { detail: 2 }));
+  equal(v(), 4);
+  et.dispatchEvent(new CustomEvent("update", { detail: 8 }));
+  equal(v(), 16);
+  base(3);
+  equal(v(), 16);
+  et.dispatchEvent(new CustomEvent("update", { detail: 2 }));
+  equal(v(), 6);
+});
+
 test("signal + peek + watch", () => {
   let os = ObservableScope();
 
@@ -475,6 +561,41 @@ test("nesting", () => {
   a(100);
   equal(b(), false);
   equal(get.mock.callCount(), 2);
+});
+
+test("nesting + produce", () => {
+  let parent = ObservableScope();
+  let a = parent.signal(13);
+
+  let child = ObservableScope();
+
+  /**
+   * @template T
+   * @param {import("./inertial").Scope} child
+   * @param {import("./inertial").Scope} parent
+   * @param {() => T} get
+   * @returns {import("./inertial").Signal<T>}
+   */
+  function connect(child, parent, get) {
+    return child.produce(get(), (value, signal) => {
+      signal.onabort = parent.watch(() => value(get()));
+    });
+  }
+
+  let get = mock.fn(() => a() > 10);
+  let b = connect(child, parent, get);
+
+  equal(get.mock.callCount(), 2);
+  equal(b(), true);
+  a(0);
+  equal(b(), false);
+  equal(get.mock.callCount(), 3);
+
+  child.dispose();
+
+  a(100);
+  equal(b(), false);
+  equal(get.mock.callCount(), 3);
 });
 
 test("deref", () => {

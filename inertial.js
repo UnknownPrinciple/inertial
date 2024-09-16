@@ -96,6 +96,36 @@ export function ObservableScope(schedule = immediate) {
     return wrap(node, equals);
   }
 
+  function produce(initial, produce, equals = Object.is) {
+    let ctl = new AbortController();
+    let signal;
+    let node = {
+      current: initial,
+      flag: PROVIDER + CONSUMER + DISPOSER,
+      update() {
+        ctl = (ctl.abort(), new AbortController());
+        tracking = new WeakSet();
+        produce(signal, ctl.signal);
+        node.tracking = tracking;
+        tracking = null;
+      },
+      dispose() {
+        ctl.abort();
+        (node.prev.next = node.next).prev = node.prev;
+      },
+      prev: null,
+      next: null,
+    };
+    signal = wrap(node, equals);
+    tracking = new WeakSet();
+    produce(signal, ctl.signal);
+    node.tracking = tracking;
+    tracking = null;
+    node.prev = (node.next = tail).prev;
+    tail.prev = tail.prev.next = node;
+    return signal;
+  }
+
   function peek(get) {
     let temp = tracking;
     tracking = null;
@@ -177,7 +207,7 @@ export function ObservableScope(schedule = immediate) {
     } else marking = [];
   }
 
-  return { signal, watch, derive, observe, peek, batch, deref, dispose };
+  return { signal, watch, derive, observe, produce, peek, batch, deref, dispose };
 }
 
 function immediate(cb) {
