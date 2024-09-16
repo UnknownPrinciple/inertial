@@ -26,20 +26,20 @@ export function ObservableScope(schedule = immediate) {
 
   function watch(fn) {
     tracking = new WeakSet();
-    let clear = fn();
+    let ctl = new AbortController();
+    fn(ctl.signal);
     let node = {
       flag: CONSUMER + DISPOSER,
       tracking,
       update() {
-        if (typeof clear === "function") clear();
+        ctl = (ctl.abort(), new AbortController());
         tracking = new WeakSet();
-        clear = fn();
+        fn(ctl.signal);
         node.tracking = tracking;
         tracking = null;
       },
       dispose() {
-        if (typeof clear === "function") clear();
-        clear = null;
+        ctl.abort();
         (node.prev.next = node.next).prev = node.prev;
       },
       prev: tail.prev,
@@ -75,26 +75,25 @@ export function ObservableScope(schedule = immediate) {
   }
 
   function observe(get, subscribe, equals = Object.is) {
-    let clear;
+    let ctl = new AbortController();
     let node = {
       current: get(),
       flag: PROVIDER + DISPOSER,
       dispose() {
-        if (typeof clear === "function") clear();
-        clear = null;
+        ctl.abort();
         (node.prev.next = node.next).prev = node.prev;
       },
       prev: tail.prev,
       next: tail,
     };
     tail.prev = tail.prev.next = node;
-    clear = subscribe(() => {
+    subscribe(() => {
       let value = get();
       if (!equals(value, node.current)) {
         node.current = value;
         mark(node);
       }
-    });
+    }, ctl.signal);
     return wrap(node, equals);
   }
 

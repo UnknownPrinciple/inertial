@@ -9,12 +9,15 @@ export type Signal<Value> = {
 
 export type Scope = {
   observe: {
-    /** Create a signal that subscribes to external source of values. */
-    <Value>(get: () => Value, subscribe: (cb: () => void) => () => void): Signal<Value>;
-    /** Create a signal that subscribes to external source of values. */
+    /** Create a signal that subscribes to external source of values.*/
     <Value>(
       get: () => Value,
-      subscribe: (cb: () => void) => () => void,
+      subscribe: (cb: () => void, signal: AbortSignal) => () => void,
+    ): Signal<Value>;
+    /** Create a signal that subscribes to external source of values.*/
+    <Value>(
+      get: () => Value,
+      subscribe: (cb: () => void, signal: AbortSignal) => () => void,
       equals: (prev: Value, next: Value) => boolean,
     ): Signal<Value>;
   };
@@ -35,9 +38,9 @@ export type Scope = {
 
   watch: {
     /** Perform any action based on reactive values. The function will be rerun when any of dependencies update. */
-    (cb: () => void): () => void;
+    (cb: (signal: AbortSignal) => void): () => void;
     /** Perform any action based on reactive values. The function will be rerun when any of dependencies update. */
-    (cb: () => () => void): () => void;
+    (cb: (signal: AbortSignal) => () => void): () => void;
   };
 
   peek: {

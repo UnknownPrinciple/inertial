@@ -70,9 +70,9 @@ test("signal + watch + cleanup", () => {
   let os = ObservableScope();
   let value = os.signal(13);
   let cleanup = mock.fn();
-  os.watch(() => {
+  os.watch((signal) => {
     value();
-    return cleanup;
+    signal.onabort = cleanup;
   });
   equal(cleanup.mock.callCount(), 0);
   value((v) => v + 1);
@@ -124,7 +124,9 @@ is getting disposed. */
 test("signal + watch + dispose", () => {
   let os = ObservableScope();
   let cleanup = mock.fn();
-  let watcher = mock.fn(() => cleanup);
+  let watcher = mock.fn((signal) => {
+    signal.onabort = cleanup;
+  });
   os.watch(watcher);
   equal(cleanup.mock.callCount(), 0);
   equal(watcher.mock.callCount(), 1);
@@ -340,10 +342,7 @@ test("observe + watch", () => {
   let source = 0;
   let a = os.observe(
     () => source,
-    (cb) => {
-      et.addEventListener("update", cb);
-      return () => et.removeEventListener("update", cb);
-    },
+    (cb, signal) => et.addEventListener("update", cb, { signal }),
   );
 
   equal(a(), 0);
@@ -351,10 +350,10 @@ test("observe + watch", () => {
   let received;
   let cleanup = mock.fn();
   let b = os.signal(true);
-  os.watch(() => {
+  os.watch((signal) => {
     if (!b()) return;
     received = a();
-    return cleanup;
+    signal.onabort = cleanup;
   });
   let c = os.derive(() => a());
 
@@ -504,9 +503,9 @@ test("deref + disposer", () => {
   let value = mock.fn(() => 1);
   let unsub = mock.fn();
   let trigger = mock.fn();
-  let a = os.observe(value, (cb) => {
+  let a = os.observe(value, (cb, signal) => {
     trigger.mock.mockImplementation(cb);
-    return unsub;
+    signal.onabort = unsub;
   });
   equal(a(), 1);
   value.mock.mockImplementation(() => 2);
