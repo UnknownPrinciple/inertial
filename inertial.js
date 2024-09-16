@@ -143,6 +143,7 @@ export function ObservableScope(schedule = immediate) {
   }
 
   function deref(...signals) {
+    let temp = tracking;
     tracking = {
       add(node) {
         if (node.flag & DISPOSER) node.dispose();
@@ -152,7 +153,7 @@ export function ObservableScope(schedule = immediate) {
 
     for (let signal of signals) signal();
 
-    tracking = null;
+    tracking = temp;
   }
 
   function dispose() {
