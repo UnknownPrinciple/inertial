@@ -8,13 +8,9 @@ import { ObservableScope } from "inertial";
 export function vm() {
   let os = ObservableScope();
   let a = os.signal(0);
-  let e = os.observe(
-    () => navigator.onLine,
-    (cb) => {
-      window.addEventListener("offline", cb)
-      return () => window.removeEventListener("offline", cb)
-    },
-  )
+  let e = os.produce(navigator.onLine, (value, signal) => {
+    window.addEventListener("offline", () => value(navigator.onLine), { signal });
+  });
   let b = os.derive(() => (e() ? a() * 3 : 0));
 
   os.watch(() => {

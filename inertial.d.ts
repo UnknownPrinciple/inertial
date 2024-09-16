@@ -9,12 +9,14 @@ export type Signal<Value> = {
 
 export type Scope = {
   observe: {
-    /** Create a signal that subscribes to external source of values.*/
+    /** Create a signal that subscribes to external source of values.
+     * @deprecated */
     <Value>(
       get: () => Value,
       subscribe: (cb: () => void, signal: AbortSignal) => () => void,
     ): Signal<Value>;
-    /** Create a signal that subscribes to external source of values.*/
+    /** Create a signal that subscribes to external source of values.
+     * @deprecated*/
     <Value>(
       get: () => Value,
       subscribe: (cb: () => void, signal: AbortSignal) => () => void,
