@@ -104,12 +104,22 @@ export function vm() {
   return () => window.removeEventListener("offline", handle);
 }`);
 
+console.log("Hello world:");
 console.table({
   inertial: inertial,
   "@preact/signals-core": preact,
   "@vue/reactivity": vue,
   knockout: knockout,
   "@angular/core": angular,
+});
+
+console.log("Imports only:");
+console.table({
+  inertial: build(`export { ObservableScope } from "inertial";`),
+  "@preact/signals-core": build(`export { signal, computed, effect } from "@preact/signals-core";`),
+  "@vue/reactivity": build(`export { reactive, computed, effect } from "@vue/reactivity";`),
+  knockout: build(`export { observable, computed } from "knockout";`),
+  "@angular/core": build(`export { signal, computed, effect } from "@angular/core";`),
 });
 
 function build(contents) {
