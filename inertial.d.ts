@@ -9,12 +9,12 @@ export type Signal<Value> = {
 
 export type Scope = {
   produce: {
-    /** */
+    /** Create a signal that produces values from external events or async flows. */
     <Value>(
       value: Value,
       produce: (value: Signal<Value>, signal: AbortSignal) => void,
     ): Signal<Value>;
-    /** */
+    /** Create a signal that produces values from external events or async flows. Provide custom equality check. */
     <Value>(
       value: Value,
       produce: (value: Signal<Value>, signal: AbortSignal) => void,
@@ -32,16 +32,12 @@ export type Scope = {
   derive: {
     /** Create a reactive value that computes its value automatically from watching other signals. */
     <Value>(get: () => Value): Signal<Value>;
-    /** Create a reactive value that computes its value automatically from watching other signals. */
+    /** Create a reactive value that computes its value automatically from watching other signals. Provide custom equality check. */
     <Value>(get: () => Value, equals: (prev: Value, next: Value) => boolean): Signal<Value>;
   };
 
-  watch: {
-    /** Perform any action based on reactive values. The function will be rerun when any of dependencies update. */
-    (cb: (signal: AbortSignal) => void): () => void;
-    /** Perform any action based on reactive values. The function will be rerun when any of dependencies update. */
-    (cb: (signal: AbortSignal) => () => void): () => void;
-  };
+  /** Perform any action based on reactive values. The function will be rerun when any of dependencies update. */
+  watch(cb: (signal: AbortSignal) => void): () => void;
 
   peek: {
     /** Get signal value inside derive/watch functions without tracking dependency. */

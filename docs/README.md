@@ -39,16 +39,10 @@ Using NPM:
 npm install inertial
 ```
 
+Package provides following imports:
+
 ```js
 import { ObservableScope } from "inertial";
-```
-
-Using CDN:
-
-```html
-<script type="module">
-  import { ObservableScope } from "https://esm.sh/inertial@0.1.0";
-</script>
 ```
 
 ## Getting Started
@@ -128,8 +122,9 @@ count(10);
 // Output: Count: 10, Doubled: 20
 ```
 
-A watch function may return a "cleanup" function to perform extra work before re-running the
-watcher:
+A watch function receives an instance of
+[AbortSignal](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal), that is aborted when
+watcher needs to re-run (due to dependencies change) or dispose (when the scope is disposed):
 
 ```js
 let positionX = os.signal(0);
