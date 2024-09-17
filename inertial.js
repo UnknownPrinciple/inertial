@@ -9,6 +9,7 @@ export function ObservableScope(schedule = immediate) {
 
   /** @type {WeakSet<any> | null} */
   let tracking = null;
+  let counting = 0;
   let flushing = false;
   let marking = [];
   let pending = [];
@@ -25,14 +26,14 @@ export function ObservableScope(schedule = immediate) {
     let ctl = new AbortController();
     fn(ctl.signal);
     let node = {
-      flag: CONSUMER + DISPOSER,
+      flag: counting > 0 ? CONSUMER + DISPOSER : DISPOSER,
       tracking,
       update() {
         ctl = (ctl.abort(), new AbortController());
         tracking = new WeakSet();
         fn(ctl.signal);
         node.tracking = tracking;
-        tracking = null;
+        (counting = 0), (tracking = null);
       },
       dispose() {
         ctl.abort();
@@ -43,7 +44,7 @@ export function ObservableScope(schedule = immediate) {
     };
     node.prev = (node.next = tail).prev;
     tail.prev = tail.prev.next = node;
-    tracking = null;
+    (counting = 0), (tracking = null);
     return node.dispose;
   }
 
@@ -57,7 +58,7 @@ export function ObservableScope(schedule = immediate) {
         tracking = new WeakSet();
         let value = get();
         node.tracking = tracking;
-        tracking = null;
+        (counting = 0), (tracking = null);
         if (!equals(value, node.current)) {
           node.current = value;
           marking.push(node);
@@ -68,7 +69,7 @@ export function ObservableScope(schedule = immediate) {
     };
     node.prev = (node.next = tail).prev;
     tail.prev = tail.prev.next = node;
-    tracking = null;
+    (counting = 0), (tracking = null);
     return wrap(node, equals);
   }
 
@@ -77,13 +78,13 @@ export function ObservableScope(schedule = immediate) {
     let signal;
     let node = {
       current: initial,
-      flag: PROVIDER + CONSUMER + DISPOSER,
+      flag: PROVIDER + DISPOSER,
       update() {
         ctl = (ctl.abort(), new AbortController());
         tracking = new WeakSet();
         produce(signal, ctl.signal);
         node.tracking = tracking;
-        tracking = null;
+        (counting = 0), (tracking = null);
       },
       dispose() {
         ctl.abort();
@@ -96,7 +97,8 @@ export function ObservableScope(schedule = immediate) {
     tracking = new WeakSet();
     produce(signal, ctl.signal);
     node.tracking = tracking;
-    tracking = null;
+    node.flag = counting > 0 ? PROVIDER + CONSUMER + DISPOSER : PROVIDER + DISPOSER;
+    (counting = 0), (tracking = null);
     node.prev = (node.next = tail).prev;
     tail.prev = tail.prev.next = node;
     return signal;
@@ -146,7 +148,7 @@ export function ObservableScope(schedule = immediate) {
     return (value) => {
       if (typeof value === "undefined") {
         // reading
-        if (tracking != null) tracking.add(node);
+        if (tracking != null) counting++, tracking.add(node);
         return node.current;
       } else {
         // writing
