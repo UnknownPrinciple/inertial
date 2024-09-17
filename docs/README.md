@@ -183,15 +183,24 @@ here" every time `count` is updated, even though it's not going to be actually u
 
 ### Observing External Sources
 
-The `observe` method creates a signal that subscribes to an external source of values:
+The `produce` method creates a signal that subscribes to an external source of values:
 
 ```js
-let onLine = os.observe(
-  () => navigator.onLine,
-  (cb, signal) => {
-    window.addEventListener("offline", cb, { signal });
-  },
-);
+let onLine = os.produce(navigator.onLine, (value, signal) => {
+  window.addEventListener("offline", () => value(navigator.onLine), { signal });
+});
+```
+
+It can be also used for resolving async computations:
+
+```js
+let currentUser = os.signal("id");
+let userInfo = os.produce(null, async (value, signal) => {
+  // pass signal to fetch() to abort a request if currentUser() changes
+  let response = await fetch(`/api/users/${currentUser()}/`, { signal });
+  let info = await response.json();
+  value(info);
+});
 ```
 
 ### Peeking at Signal Values

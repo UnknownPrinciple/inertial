@@ -72,30 +72,6 @@ export function ObservableScope(schedule = immediate) {
     return wrap(node, equals);
   }
 
-  function observe(get, subscribe, equals = Object.is) {
-    let ctl = new AbortController();
-    let node = {
-      current: get(),
-      flag: PROVIDER + DISPOSER,
-      dispose() {
-        ctl.abort();
-        (node.prev.next = node.next).prev = node.prev;
-      },
-      prev: null,
-      next: null,
-    };
-    node.prev = (node.next = tail).prev;
-    tail.prev = tail.prev.next = node;
-    subscribe(() => {
-      let value = get();
-      if (!equals(value, node.current)) {
-        node.current = value;
-        mark(node);
-      }
-    }, ctl.signal);
-    return wrap(node, equals);
-  }
-
   function produce(initial, produce, equals = Object.is) {
     let ctl = new AbortController();
     let signal;
@@ -208,7 +184,7 @@ export function ObservableScope(schedule = immediate) {
     } else marking = [];
   }
 
-  return { signal, watch, derive, observe, produce, peek, batch, deref, dispose };
+  return { signal, watch, derive, produce, peek, batch, deref, dispose };
 }
 
 function immediate(cb) {

@@ -353,59 +353,6 @@ test("signal + derive once", () => {
 });
 
 /* One more capability */
-test("observe + watch", () => {
-  let os = ObservableScope();
-
-  let et = new EventTarget();
-  let source = 0;
-  let a = os.observe(
-    () => source,
-    (cb, signal) => et.addEventListener("update", cb, { signal }),
-  );
-
-  equal(a(), 0);
-
-  let received;
-  let cleanup = mock.fn();
-  let b = os.signal(true);
-  os.watch((signal) => {
-    if (!b()) return;
-    received = a();
-    signal.onabort = cleanup;
-  });
-  let c = os.derive(() => a());
-
-  equal(received, 0);
-
-  source = 13;
-  et.dispatchEvent(new Event("update"));
-
-  equal(a(), 13);
-  equal(received, 13);
-  equal(c(), 13);
-  equal(cleanup.mock.callCount(), 1);
-
-  b(false);
-
-  source = 100;
-  et.dispatchEvent(new Event("update"));
-
-  equal(a(), 100);
-  equal(received, 13);
-  equal(c(), 100);
-  equal(cleanup.mock.callCount(), 2);
-
-  os.dispose();
-
-  source = 200;
-  et.dispatchEvent(new Event("update"));
-
-  equal(a(), 100);
-  equal(received, 13);
-  equal(c(), 100);
-  equal(cleanup.mock.callCount(), 2);
-});
-
 test("produce + watch", () => {
   let os = ObservableScope();
 
@@ -525,44 +472,6 @@ test("signal + derive + batch", () => {
   equal(valueC(), 150);
 });
 
-test("nesting", () => {
-  let parent = ObservableScope();
-  let a = parent.signal(13);
-
-  let child = ObservableScope();
-
-  /**
-   * @template T
-   * @param {import("./inertial").Scope} child
-   * @param {import("./inertial").Scope} parent
-   * @param {() => T} get
-   * @param {T} [value]
-   * @returns {import("./inertial").Signal<T>}
-   */
-  function connect(child, parent, get, value) {
-    return child.observe(
-      () => value,
-      (cb, signal) => {
-        signal.onabort = parent.watch(() => ((value = get()), cb()));
-      },
-    );
-  }
-
-  let get = mock.fn(() => a() > 10);
-  let b = connect(child, parent, get);
-
-  equal(b(), true);
-  a(0);
-  equal(b(), false);
-  equal(get.mock.callCount(), 2);
-
-  child.dispose();
-
-  a(100);
-  equal(b(), false);
-  equal(get.mock.callCount(), 2);
-});
-
 test("nesting + produce", () => {
   let parent = ObservableScope();
   let a = parent.signal(13);
@@ -626,8 +535,8 @@ test("deref + disposer", () => {
   let value = mock.fn(() => 1);
   let unsub = mock.fn();
   let trigger = mock.fn();
-  let a = os.observe(value, (cb, signal) => {
-    trigger.mock.mockImplementation(cb);
+  let a = os.produce(value(), (v, signal) => {
+    trigger.mock.mockImplementation(() => v(value()));
     signal.onabort = unsub;
   });
   equal(a(), 1);
